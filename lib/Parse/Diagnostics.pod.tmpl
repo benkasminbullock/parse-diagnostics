@@ -3,11 +3,11 @@
 
 =head1 NAME
 
-Parse::Diagnostics - abstract here.
+Parse::Diagnostics - extract diagnostic messages from Perl source code
 
 =head1 SYNOPSIS
 
-    use Parse::Diagnostics;
+    use Parse::Diagnostics 'parse_diagnostics';
 
 =head1 VERSION
 
@@ -16,7 +16,40 @@ commit [% commit.commit %] released on [% commit.date %].
 
 =head1 DESCRIPTION
 
+This module is a helper for writing documentation by extracting the
+diagnostic messages in Perl files.
+
 =head1 FUNCTIONS
 
-=cut
+=head2 parse_diagnostics
+
+    my $diagnostics = parse_diagnostics ($file);
+
+Extract a list of diagnostic messages from C<$file>. The return value
+is an array reference containing hash values.
+
+=over
+
+=item type
+
+The type of diagnostic, like "carp", "croak", etc.
+
+=item message
+
+The diagnostic message itself.
+
+=item line
+
+The line where the diagnostic begins (not implemented yet).
+
+=back
+
+=head1 DEPENDENCIES
+
+=over
+
+=item L<Path::Tiny>
+
+Path::Tiny is used to read the input files.
+
 [% INCLUDE "author" %]
