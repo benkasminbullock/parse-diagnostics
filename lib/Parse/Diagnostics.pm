@@ -10,7 +10,7 @@ use strict;
 use Carp;
 use Path::Tiny;
 use C::Tokenize '$string_re';
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 our $message_re = qr
 /
