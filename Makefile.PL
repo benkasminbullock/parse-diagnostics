@@ -34,4 +34,7 @@ WriteMakefile (
         },
     },
     MIN_PERL_VERSION => '5.006001',
+    EXE_FILES => [
+	"script/parse-diagnostics",
+    ],
 );
