@@ -10,7 +10,7 @@ use strict;
 use Carp;
 use Path::Tiny;
 use C::Tokenize '$string_re';
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 our $message_re = qr
 /
@@ -79,38 +79,50 @@ our $c_diagnostics_re = qr
 	($string_re)
     /x;
 
+# Match "$regex" to "$contents" globally, and record the lines of each
+# match.
+
+sub regex_lines
+{
+    my ($contents, $regex) = @_;
+    # Copy the contents, then delete chunks off the front of it as we
+    # find diagnostics, so we can keep track of the line numbers.
+    my $copycontents = $contents;
+    my @diagnostics;
+    my $line = 1;
+    while ($copycontents =~ s/^(.*?)$regex//s) {
+	my $leading = $1;
+	my $type = $2;
+	my $message = $3;
+	# Count the lines in $leading.
+	my $lines = ($leading =~ tr/\n//);
+	push @diagnostics, {
+	    type => $type,
+	    message => $message,
+	    line => $line + $lines,
+	};
+#	print "$message ", $line + $lines, "\n";
+	# Add the lines in $lines and whatever lines may be in
+	# $message to the current line.
+	$line += $lines + ($message =~ tr/\n//);
+    }
+    return \@diagnostics;
+}
+
 sub parse_diagnostics_pp
 {
     my ($contents, %options) = @_;
-    my @diagnostics;
-    while ($contents =~ /$diagnostics_re/g) {
-	push @diagnostics, {
-	    type => $1,
-	    message => $2,
-	    line => 0,
-	};
-    }
-    return \@diagnostics;
+    return regex_lines ($contents, $diagnostics_re);
 }
 
 sub parse_diagnostics_xs
 {
     my ($contents, %options) = @_;
     my @diagnostics;
-    while ($contents =~ /$xs_diagnostics_re/g) {
-	push @diagnostics, {
-	    type => $1,
-	    message => $2,
-	    line => 0,
-	};
-    }
-    while ($contents =~ /$c_diagnostics_re/g) {
-	push @diagnostics, {
-	    type => $1,
-	    message => $2,
-	    line => 0,
-	};
-    }
+    my $xs = regex_lines ($contents, $xs_diagnostics_re);
+    push @diagnostics, @$xs;
+    my $c = regex_lines ($contents, $c_diagnostics_re);
+    push @diagnostics, @$c;
     return \@diagnostics;
 }
 
@@ -118,24 +130,31 @@ sub parse_diagnostics
 {
     my ($file, %options) = @_;
     my $contents = path ($file)->slurp ();
-    my @diagnostics;
+    my $diagnostics;
     if ($file =~ /\.(c|xs)$/) {
-	my $xsdiagnostics = parse_diagnostics_xs ($contents, %options);
-	push @diagnostics, @$xsdiagnostics;
+	$diagnostics = parse_diagnostics_xs ($contents, %options);
     }
     else {
-	my $ppdiagnostics = parse_diagnostics_pp ($contents, %options);
-	push @diagnostics, @$ppdiagnostics;
+	$diagnostics = parse_diagnostics_pp ($contents, %options);
     }
+    # Get user-defined diagnostics
     if ($options{user_re}) {
-	while ($contents =~ /$options{user_re}/g) {
-	    push @diagnostics, {
-		type => $1,
-		message => $2,
-		line => 0,
-	    }
+	my $udiagnostics = regex_lines ($contents, $options{user_re});
+	push @$diagnostics, @$udiagnostics;
+    }
+    # Hashmap of duplicates
+    my %dl;
+    my @diagnostics;
+    # Eliminate duplicate diagnostics
+    for my $d (@$diagnostics) {
+	my $key = $d->{message} . "-" . $d->{line};
+	if (! $dl{$key}) {
+	    push @diagnostics, $d;
+	    $dl{$key} = 1;
 	}
     }
+    # Sort by line
+    @diagnostics = sort {$a->{line} <=> $b->{line}} @diagnostics;
     return \@diagnostics;
 }
 
